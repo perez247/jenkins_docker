@@ -1,0 +1,79 @@
+# This docker-compose file intent to create a multi-container application
+# that runs a Jenkins container connected via TLS to a Docker-in-Docker (dind) container as Docker daemon.
+#
+# Advice about this approach can be found at: 
+# http://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/
+#
+# As well discussion about another alternatives on this setup can be found at:
+# https://forums.docker.com/t/using-docker-in-a-dockerized-jenkins-container/322/11
+#
+# Quick reference about Docker-in-Docker can be fount at:
+# https://hub.docker.com/_/docker
+# 
+# Main source: https://www.jenkins.io/doc/tutorials/create-a-pipeline-in-blue-ocean/
+
+version: '3.8'
+
+networks:
+    docker:
+
+volumes:
+    jenkins-docker-certs:
+    docker-graph-storage:
+
+services:
+
+    # admin login
+    # username: jenkins_user
+    # username: jenkins_password
+    jenkins:
+        image: jenkinsci/blueocean
+        restart: always
+        networks:
+            - docker
+        ports:
+            - "8080"
+            - "50000:50000"
+        tty: true
+        volumes:
+            - ./jenkins_data:/var/jenkins_home
+            - jenkins-docker-certs:/certs/client:ro
+            - $HOME:/home
+        environment:
+            - DOCKER_HOST=tcp://docker:2376
+            - DOCKER_CERT_PATH=/certs/client
+            - DOCKER_TLS_VERIFY=1
+
+    dind:
+        image: docker:dind
+        privileged: true
+        restart: always
+        networks:
+            docker:
+              aliases: 
+                - docker
+        tty: true
+        volumes:
+            - ./jenkins_data:/var/jenkins_home
+            - jenkins-docker-certs:/certs/client
+            - $HOME:/home
+            - docker-graph-storage:/var/lib/docker
+        environment:
+            - DOCKER_TLS_CERTDIR=/certs
+
+    proxy_server_container:
+        restart: always
+        image: nginx
+        networks:
+            - docker
+        volumes:
+            - './nginx/default.conf:/etc/nginx/conf.d/default.conf'
+            - './nginx/error_logs:/etc/nginx/error_logs'
+            # - './nginx/certs:/etc/nginx/certs'
+        ports:
+            - "80:80"
+            # - "443:443"
+        depends_on:
+            - jenkins
+            - dind
+            

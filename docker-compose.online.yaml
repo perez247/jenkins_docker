@@ -6,7 +6,7 @@ networks:
 services:
 
     jenkins:
-        image: jenkins/jenkins:lts
+        image: jenkins/jenkins:lts #or use jenkins/jenkins:jdk17-preview if failing to install
         restart: always
         networks:
             - docker
